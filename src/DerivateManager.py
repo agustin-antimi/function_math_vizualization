@@ -83,7 +83,7 @@ class DerivateManager:
             if sym.name not in symbols_to_remove
         ]            
     
-    def _convert_input_to_math_function(self, function: str) -> sp.Expr:
+    def convert_input_to_math_function(self, function: str) -> sp.Expr:
         """
         Converts a string representation of a mathematical function into a SymPy expression.
         Supports implicit multiplication (e.g., "2x" is parsed as "2*x").
@@ -107,6 +107,52 @@ class DerivateManager:
         if function is None:
             return None
         
-        expr = self._convert_input_to_math_function(function)
+        expr = self.convert_input_to_math_function(function)
             
         return sp.diff(expr, *self._symbols)
+    
+    def evaluate_function(self, function: str, values: dict, as_float: bool = True) -> Any:
+        """
+        Evaluates a mathematical function at specific values, strictly using the 
+        symbols defined in the class instance.
+
+        Args:
+            function (str): The mathematical function in text format.
+            values (dict): A dictionary mapping variable names to their numerical values. 
+                           Must only contain variables defined in the instance.
+            as_float (bool, optional): If True, returns a numerical (floating point) result. 
+                                       If False, returns the exact symbolic result. Defaults to True.
+
+        Returns:
+            Any: The evaluated result.
+            
+        Raises:
+            ValueError: If a variable in 'values' is not defined in the instance's symbols.
+        """
+        if not function:
+            return None
+            
+        # 1. Obtenemos los nombres de los símbolos válidos de la instancia
+        valid_symbol_names = {sym.name for sym in self._symbols}
+        
+        # 2. Validamos que las variables proporcionadas existan en la instancia
+        for key in values.keys():
+            if key not in valid_symbol_names:
+                raise ValueError(
+                    f"The variable '{key}' is not defined in the instance symbols. "
+                    f"Available symbols are: {list(valid_symbol_names)}"
+                )
+                
+        expr = self.convert_input_to_math_function(function)
+        
+        # 3. Construimos el diccionario de sustitución usando los objetos Symbol exactos de la instancia
+        subs_dict = {}
+        for sym in self._symbols:
+            if sym.name in values:
+                subs_dict[sym] = values[sym.name]
+                
+        result = expr.subs(subs_dict)
+        
+        if as_float:
+            return result.evalf()
+        return result
