@@ -1,4 +1,9 @@
 import sympy as sp
+from sympy.parsing.sympy_parser import (
+    parse_expr, 
+    standard_transformations, 
+    implicit_multiplication_application
+)
 from typing import Optional, Any, List, Union
 
 class DerivateManager:
@@ -62,44 +67,46 @@ class DerivateManager:
             if not any(existing_sym.name == sym_name for existing_sym in self._symbols):
                 self._symbols.append(sp.Symbol(sym_name))      
 
-    def remove_symbols(self, *symbols_to_remove: str) -> None:
+    def remove_symbols(self, symbols_to_remove: Union[str,List[str]]) -> None:
         """
         Removes symbols from the existing list of derivation symbols.
         
         Args:
-            *symbols_to_remove (str): A sequence of symbol names to remove.
+            symbols_to_remove (str or List[str]): The values to remove from the list.
         """
         # Filter the current symbols and delete the symbols in the list of symbols_to_remove 
+        if isinstance(symbols_to_remove, str):
+            symbols_to_remove = [symbols_to_remove]
+
         self._symbols = [
             sym for sym in self._symbols 
             if sym.name not in symbols_to_remove
         ]            
     
-    def calculate_derivative(self, function: Optional[str] = None, *variables: str) -> Any:
+    def _convert_input_to_math_function(self, function: str) -> sp.Expr:
         """
-        Calculates the derivative of a function. 
-        If specific variables are provided, it derives with respect to them.
-        Otherwise, it derives with respect to all the symbols defined in the class.
+        Converts a string representation of a mathematical function into a SymPy expression.
+        Supports implicit multiplication (e.g., "2x" is parsed as "2*x").
+        """
+        transformations = standard_transformations + (implicit_multiplication_application,)
+        return parse_expr(function, transformations=transformations)
+    
+    def calculate_derivative(self, function: Optional[str] = None) -> Optional[sp.Expr]:
+        """
+        Calculates the derivative of a function with respect to all the default symbols 
+        defined in the class.
 
         Args:
-            function (str, optional): The mathematical function in text format.
-            *variables (str): A sequence of variable names to derive with respect to.
-                              If none are provided, the class's default symbols are used.
+            function (str, optional): The mathematical function in text format. 
+                                      Defaults to None.
 
         Returns:
-            sp.Expr or None: The resulting derivative expression, or None if inputs are invalid.
+            Optional[sp.Expr]: The resulting derivative expression, or None if no function 
+                               is provided.
         """
         if function is None:
             return None
         
-        expr = sp.sympify(function)
-        
-        # Determinamos qué variables usar
-        if variables:
-            # Si el usuario mandó variables en el método, usamos esas
-            sym_vars = [sp.Symbol(var) for var in variables]
-        else:
-            # Si no, usamos las que están configuradas en la clase
-            sym_vars = self._symbols
+        expr = self._convert_input_to_math_function(function)
             
-        return sp.diff(expr, *sym_vars)
+        return sp.diff(expr, *self._symbols)
