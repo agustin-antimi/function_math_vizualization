@@ -4,7 +4,8 @@ from sympy.parsing.sympy_parser import (
     standard_transformations, 
     implicit_multiplication_application
 )
-from typing import Optional, Any, List, Union
+from typing import Optional, Any, List, Union, Callable
+import numpy as np
 
 class DerivateManager:
     """
@@ -156,3 +157,28 @@ class DerivateManager:
         if as_float:
             return result.evalf()
         return result
+    
+    def to_numpy_function(self, expr_or_func: Union[str, sp.Expr]) -> Callable:
+        """
+        Converts a mathematical function or a SymPy expression into a 
+        NumPy-compatible function, ideal for array evaluation and plotting.
+
+        Args:
+            expr_or_func (str or sp.Expr): The mathematical function in text format or 
+                                           the symbolic SymPy expression.
+
+        Returns:
+            Callable: A function that accepts NumPy arrays or values as 
+                      arguments (in the order of self.symbols).
+        """
+        # If it's a string, we convert it to a SymPy expression first
+        if isinstance(expr_or_func, str):
+            expr = self.convert_input_to_math_function(expr_or_func)
+        else:
+            expr = expr_or_func
+            
+        # sp.lambdify takes: 
+        # 1. The arguments of the function (our symbols)
+        # 2. The expression to evaluate
+        # 3. The library to use for mathematical operations ("numpy")
+        return sp.lambdify(self._symbols, expr, modules="numpy")   
