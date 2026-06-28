@@ -30,13 +30,13 @@ class DerivateManager:
         # Elimina duplicados y mantiene el orden en 1 línea
         unique_symbols = list(dict.fromkeys(symbols))
         self._symbols = [sp.Symbol(sym) for sym in unique_symbols]
-    
+
     @property
     def symbols(self) -> List[sp.Symbol]:
         """
         List[sp.Symbol]: Gets the current list of symbols used for derivation.
         """
-        return self._symbols
+        return self._symbols.copy()
 
     @symbols.setter
     def symbols(self, new_values: Union[str, List[str]]) -> None:
@@ -181,4 +181,46 @@ class DerivateManager:
         # 1. The arguments of the function (our symbols)
         # 2. The expression to evaluate
         # 3. The library to use for mathematical operations ("numpy")
-        return sp.lambdify(self._symbols, expr, modules="numpy")   
+        return sp.lambdify(self._symbols, expr, modules="numpy")  
+
+    def solve_for_value(self, function: str, target_value: Union[float, int] = 0) -> List[dict]:
+        """
+        Finds the values of the variables for which the function equals a specific target value.
+        It uses SymPy's Eq and solve methods.
+
+        Args:
+            function (str): The mathematical function in text format.
+            target_value (float or int, optional): The target value to equate the function to. 
+                                                   Defaults to 0 (useful for finding roots or critical points).
+
+        Returns:
+            List[dict]: A list of dictionaries where each dictionary represents a solution. 
+                        The keys are the SymPy Symbol objects and the values are the solutions.
+                        If there are multiple variables, solutions might be in terms of other variables.
+
+        Raises:
+            ValueError: If the function contains variables not defined in the instance's symbols.
+        """
+        if not function:
+            return []
+            
+        # Convert the string to a SymPy expression
+        expr = self.convert_input_to_math_function(function)
+        
+        # 1. Validate that the expression only contains variables defined in _symbols
+        expr_symbols = {sym.name for sym in expr.free_symbols}
+        valid_symbol_names = {sym.name for sym in self._symbols}
+        
+        unsupported_symbols = expr_symbols - valid_symbol_names
+        if unsupported_symbols:
+            raise ValueError(
+                f"The function contains variables not defined in the instance symbols: {list(unsupported_symbols)}. "
+                f"Available symbols are: {list(valid_symbol_names)}"
+            )
+            
+        # 2. Create the equation: expr == target_value
+        equation = sp.Eq(expr, target_value)
+        
+        # 3. Solve the equation strictly for the symbols defined in the instance
+        # dict=True ensures the output is a list of dictionaries mapping symbols to their values
+        return sp.solve(equation, self._symbols, dict=True)
