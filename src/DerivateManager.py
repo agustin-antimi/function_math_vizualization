@@ -92,25 +92,43 @@ class DerivateManager:
         transformations = standard_transformations + (implicit_multiplication_application,)
         return parse_expr(function, transformations=transformations)
     
-    def calculate_derivative(self, function: Optional[str] = None) -> Optional[sp.Expr]:
+    def calculate_derivative(
+        self, function: Optional[str] = None, mixed: bool = False
+    ) -> Optional[Union[dict, sp.Expr]]:
         """
-        Calculates the derivative of a function with respect to all the default symbols 
+        Calculates the derivative of a function with respect to the symbols
         defined in the class.
 
+        By default, computes individual partial derivatives for each symbol
+        and returns them as a dictionary. If ``mixed=True``, computes the
+        successive mixed partial derivative (∂ⁿf/∂x₁…∂xₙ) instead.
+
         Args:
-            function (str, optional): The mathematical function in text format. 
+            function (str, optional): The mathematical function in text format.
                                       Defaults to None.
+            mixed (bool, optional): If True, returns the single mixed partial
+                                    derivative with respect to all symbols
+                                    (chained). If False, returns a dictionary
+                                    mapping each symbol to its individual
+                                    partial derivative. Defaults to False.
 
         Returns:
-            Optional[sp.Expr]: The resulting derivative expression, or None if no function 
-                               is provided.
+            Optional[Union[dict, sp.Expr]]:
+                - If ``mixed=False``: a dict ``{sp.Symbol: sp.Expr}`` with one
+                  partial derivative per symbol.
+                - If ``mixed=True``: a single ``sp.Expr`` representing the
+                  mixed partial derivative.
+                - ``None`` if no function is provided.
         """
         if function is None:
             return None
-        
+
         expr = self.convert_input_to_math_function(function)
-            
-        return sp.diff(expr, *self._symbols)
+
+        if mixed:
+            return sp.diff(expr, *self._symbols)
+
+        return {sym: sp.diff(expr, sym) for sym in self._symbols}
     
     def evaluate_function(self, function: str, values: dict, as_float: bool = True) -> Any:
         """

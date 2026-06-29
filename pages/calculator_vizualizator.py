@@ -90,7 +90,15 @@ if st.session_state.get("derivative_result") is not None:
 
     expr_original = manager.convert_input_to_math_function(original)
     st.latex(rf"f({sym_names}) = {sp.latex(expr_original)}")
-    st.latex(rf"f'({sym_names}) = {sp.latex(result)}")
+
+    # result is a dict {Symbol: Expr} with one partial derivative per variable
+    if isinstance(result, dict):
+        for sym, deriv_expr in result.items():
+            st.latex(rf"\frac{{\partial f}}{{\partial {sp.latex(sym)}}} = {sp.latex(deriv_expr)}")
+    else:
+        # Legacy fallback for old session results (single expression)
+        st.latex(rf"f'({sym_names}) = {sp.latex(result)}")
 
 elif st.session_state.get("derivative_error"):
     st.error(f"Error calculating the derivative: {st.session_state['derivative_error']}")
+
