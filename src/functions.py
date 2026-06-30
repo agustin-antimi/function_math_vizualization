@@ -25,6 +25,120 @@ def function_to_array(
     numpy_function = manager.to_numpy_function(function)
     return numpy_function(x_values)
 
+
+def _plot_2d(
+    manager: DerivateManager,
+    function: Union[str, sp.Expr],
+    x_min: float = -1000.0,
+    x_max: float = 1000.0,
+    step: float = 0.05,
+    initial_x_view: list[float] = [-5, 5],
+    initial_y_view: list[float] = [-5, 5],
+) -> go.Figure:
+    """
+    Internal helper that builds a 2D interactive line plot for a single-variable function.
+
+    Args:
+        manager (DerivateManager): The manager instance with exactly one symbol.
+        function (Union[str, sp.Expr]): The mathematical function to plot.
+        x_min (float): Minimum x-value for generated data.
+        x_max (float): Maximum x-value for generated data.
+        step (float): Step size between x-values.
+        initial_x_view (list[float]): [min, max] range for the initial X-axis view.
+        initial_y_view (list[float]): [min, max] range for the initial Y-axis view.
+
+    Returns:
+        go.Figure: The generated Plotly figure.
+    """
+    x = np.arange(x_min, x_max, step)
+    y = function_to_array(manager, function, x)
+
+    func_name = f"y = {function}" if isinstance(function, str) else f"y = {str(function)}"
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=y,
+        mode='lines',
+        name=func_name,
+        line=dict(color='blue')
+    ))
+
+    fig.update_layout(
+        xaxis=dict(
+            zeroline=True,
+            zerolinewidth=2,
+            zerolinecolor='black',
+            showgrid=True,
+            range=initial_x_view,
+        ),
+        yaxis=dict(
+            zeroline=True,
+            zerolinewidth=2,
+            zerolinecolor='black',
+            showgrid=True,
+            range=initial_y_view,
+        ),
+        plot_bgcolor='white',
+        hovermode="x unified",
+        title=f"Interactive Plot: {func_name}",
+    )
+
+    return fig
+
+
+def _plot_3d(
+    manager: DerivateManager,
+    function: Union[str, sp.Expr],
+    xy_min: float = -10.0,
+    xy_max: float = 10.0,
+    step: float = 0.2,
+) -> go.Figure:
+    """
+    Internal helper that builds a 3D interactive surface plot for a two-variable function.
+
+    Args:
+        manager (DerivateManager): The manager instance with exactly two symbols.
+        function (Union[str, sp.Expr]): The mathematical function to plot.
+        xy_min (float): Minimum value for both axes. Defaults to -10.
+        xy_max (float): Maximum value for both axes. Defaults to 10.
+        step (float): Step size for the meshgrid. Defaults to 0.2.
+
+    Returns:
+        go.Figure: The generated Plotly 3D surface figure.
+    """
+    numpy_function = manager.to_numpy_function(function)
+
+    vals = np.arange(xy_min, xy_max, step)
+    X, Y = np.meshgrid(vals, vals)
+
+    # Evaluate: the lambdified function expects (first_symbol, second_symbol)
+    Z = numpy_function(X, Y)
+
+    sym_names = [s.name for s in manager.symbols]
+    func_name = f"f({sym_names[0]}, {sym_names[1]}) = {function}" if isinstance(function, str) else f"f({sym_names[0]}, {sym_names[1]}) = {str(function)}"
+
+    fig = go.Figure()
+    fig.add_trace(go.Surface(
+        x=X,
+        y=Y,
+        z=Z,
+        colorscale='Viridis',
+        name=func_name,
+    ))
+
+    fig.update_layout(
+        scene=dict(
+            xaxis_title=sym_names[0],
+            yaxis_title=sym_names[1],
+            zaxis_title="f",
+        ),
+        title=f"3D Surface Plot: {func_name}",
+    )
+
+    return fig
+
+
 def plot_interactive(
     manager: 'DerivateManager', 
     function: Union[str, sp.Expr] = None,
@@ -37,68 +151,44 @@ def plot_interactive(
     """
     Generates and displays an interactive plot for a given mathematical function using Plotly.
 
-    This function calculates numerical values for a mathematical function (passed as a string 
-    or a SymPy expression) over a large specified range, but sets the initial view (zoom) 
-    to a predefined window. The plot features a Cartesian coordinate system.
+    Automatically selects between a 2D line plot (1 variable) and a 3D surface plot
+    (2 variables) based on the number of symbols defined in the manager.
 
     Args:
         manager (DerivateManager): The manager instance used to handle parsing/evaluation.
         function (Union[str, sp.Expr]): The mathematical function to plot. Cannot be None.
-        x_min (float, optional): The minimum x-value for the generated data. Defaults to -1000.0.
-        x_max (float, optional): The maximum x-value for the generated data. Defaults to 1000.0.
-        step (float, optional): The step size between x-values. Defaults to 0.05.
-        initial_x_view (list[float], optional): The [min, max] range for the initial X-axis view. Defaults to [-10.0, 10.0].
-        initial_y_view (list[float], optional): The [min, max] range for the initial Y-axis view. Defaults to [-2.0, 2.0].
+        x_min (float, optional): The minimum x-value for generated data (2D only). Defaults to -1000.0.
+        x_max (float, optional): The maximum x-value for generated data (2D only). Defaults to 1000.0.
+        step (float, optional): The step size between values. Defaults to 0.05.
+        initial_x_view (list[float], optional): The [min, max] range for the initial X-axis view (2D only).
+        initial_y_view (list[float], optional): The [min, max] range for the initial Y-axis view (2D only).
 
     Returns:
         plotly.graph_objects.Figure: The generated Plotly figure object.
     
     Raises:
-        ValueError: If the 'function' parameter is None.
+        ValueError: If the 'function' parameter is None or the manager has more than 2 symbols.
     """
-    
-    # Generate x values
-    x = np.arange(x_min, x_max, step)
-    
-    # Verify the function parameter and evaluate it using function_to_array
     if function is None:
         raise ValueError("The 'function' parameter cannot be None. Please provide a string or a SymPy expression.")
-    
-    # function_to_array supports str and sympy.Expr
-    y = function_to_array(manager, function, x)
-    
-    # Format the function name for the legend/title depending on its type
-    func_name = f"y = {function}" if isinstance(function, str) else f"y = {str(function)}"
-    
-    # Create the figure and add the trace
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=x, 
-        y=y, 
-        mode='lines', 
-        name=func_name,
-        line=dict(color='blue')
-    ))
 
-    # Configure the layout (Cartesian axes crossing at 0,0 and initial zoom)
-    fig.update_layout(
-        xaxis=dict(
-            zeroline=True, 
-            zerolinewidth=2, 
-            zerolinecolor='black', 
-            showgrid=True,
-            range=initial_x_view
-        ),
-        yaxis=dict(
-            zeroline=True, 
-            zerolinewidth=2, 
-            zerolinecolor='black', 
-            showgrid=True,
-            range=initial_y_view
-        ),
-        plot_bgcolor='white',
-        hovermode="x unified",
-        title=f"Interactive Plot: {func_name} (Initial view restricted)"
-    )
-    
-    return fig
+    num_symbols = len(manager.symbols)
+
+    if num_symbols == 1:
+        return _plot_2d(
+            manager, function,
+            x_min=x_min, x_max=x_max, step=step,
+            initial_x_view=initial_x_view, initial_y_view=initial_y_view,
+        )
+    elif num_symbols == 2:
+        return _plot_3d(
+            manager, function,
+            xy_min=initial_x_view[0] if initial_x_view else -10.0,
+            xy_max=initial_x_view[1] if initial_x_view else 10.0,
+            step=max(step, 0.2),
+        )
+    else:
+        raise ValueError(
+            f"Plotting is only supported for 1 or 2 variables. "
+            f"The manager has {num_symbols} symbols: {[s.name for s in manager.symbols]}"
+        )
