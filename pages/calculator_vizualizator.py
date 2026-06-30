@@ -61,6 +61,11 @@ function_input = st.text_input(
     placeholder="e.g. x**2 + 3x + 1, sin(x), e**x",
 )
 
+# Clear stale results when the input changes
+if function_input != st.session_state.get("original_function", ""):
+    st.session_state.pop("derivative_result", None)
+    st.session_state.pop("derivative_error", None)
+
 # Calculate button
 if st.button("Calculate Derivative", type="primary"):
     if function_input.strip():
@@ -99,6 +104,29 @@ if st.session_state.get("derivative_result") is not None:
         # Legacy fallback for old session results (single expression)
         st.latex(rf"f'({sym_names}) = {sp.latex(result)}")
 
+    # --- Stationary points (critical points) ---
+    st.divider()
+    st.subheader("Stationary Points")
+    st.caption("Points where all partial derivatives equal zero.")
+
+    try:
+        if isinstance(result, dict):
+            # Build system of equations: all partial derivatives = 0
+            deriv_exprs = list(result.values())
+            equations = [sp.Eq(expr, 0) for expr in deriv_exprs]
+            solutions = sp.solve(equations, manager.symbols, dict=True)
+        else:
+            # Single variable: solve f'(x) = 0
+            solutions = manager.solve_for_value(str(result), target_value=0)
+
+        if solutions:
+            for i, sol in enumerate(solutions):
+                point_parts = [rf"{sp.latex(sym)} = {sp.latex(val)}" for sym, val in sol.items()]
+                st.latex(rf"P_{{{i+1}}}: \quad " + r", \quad ".join(point_parts))
+        else:
+            st.info("No stationary points found.")
+    except Exception as e:
+        st.warning(f"Could not compute stationary points: {e}")
     # --- Evaluate function at specific values ---
     import src.functions as fn
 
@@ -141,10 +169,12 @@ if st.session_state.get("derivative_result") is not None:
     st.subheader("Plots")
 
     # Plot the original function
+    num_vars = len(manager.symbols)
+    plot_id = f"{original}_{num_vars}"
     try:
         st.markdown(f"**Original function:** $f({sym_names})$")
         fig_original = fn.plot_interactive(manager, original)
-        st.plotly_chart(fig_original, use_container_width=True)
+        st.plotly_chart(fig_original, use_container_width=True, key=f"plot_orig_{plot_id}")
     except Exception as e:
         st.error(f"Could not plot the original function: {e}")
 
@@ -154,7 +184,7 @@ if st.session_state.get("derivative_result") is not None:
             try:
                 st.markdown(f"**Derivative:** $\\partial f / \\partial {sp.latex(sym)}$")
                 fig_deriv = fn.plot_interactive(manager, deriv_expr)
-                st.plotly_chart(fig_deriv, use_container_width=True)
+                st.plotly_chart(fig_deriv, use_container_width=True, key=f"plot_d{sym.name}_{plot_id}")
             except Exception as e:
                 st.error(f"Could not plot ∂f/∂{sym.name}: {e}")
 
