@@ -53,6 +53,9 @@ def _plot_2d(
     x = np.arange(x_min, x_max, step)
     y = function_to_array(manager, function, x)
 
+    # Handle constant expressions (lambdify returns a scalar instead of an array)
+    y = np.broadcast_to(np.asarray(y, dtype=float), x.shape)
+
     func_name = f"y = {function}" if isinstance(function, str) else f"y = {str(function)}"
 
     fig = go.Figure()
@@ -114,6 +117,9 @@ def _plot_3d(
 
     # Evaluate: the lambdified function expects (first_symbol, second_symbol)
     Z = numpy_function(X, Y)
+
+    # Handle constant expressions (lambdify returns a scalar instead of an array)
+    Z = np.broadcast_to(np.asarray(Z, dtype=float), X.shape)
 
     sym_names = [s.name for s in manager.symbols]
     func_name = f"f({sym_names[0]}, {sym_names[1]}) = {function}" if isinstance(function, str) else f"f({sym_names[0]}, {sym_names[1]}) = {str(function)}"
